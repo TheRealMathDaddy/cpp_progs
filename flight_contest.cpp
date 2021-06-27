@@ -1,176 +1,216 @@
-/*
- * Program that finds the most expensive flight among all of the cheapest flights between a 
- * distinct pair of cities. 
- *
- * Input: (No prompts for input. User will enter input in order given below. Input on same
- *	       will be separated by a space).
- * 
- * c f (c = number of cities, f = number of flights)
- * 
- * Next f lines will take in the source city (x), destination city (y), and price of each flight (p).
- * x y p
- *
- */
 #include<iostream>
-
+#include<algorithm>
+#include<climits>
 using namespace std;
 
-struct Node
+struct Flight
 	{
-	int inP;
-	int predecessor;
-	int w;
+	bool inP; //flight already processed in Dijkstra's Algorithm
+	int predecessor; //predecessor of flight node
+	int d; //distance from source node
 	};
 	
-int checkP(struct Node cities[], int c);
-//////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////
-int main ()
+	
+void getInput(int &c, int &f);
+void getFlights(int* direct_flight_prices, int c, int f);
+void getAllCheapFlights(int* cheapest_flight_prices, int* direct_flight_prices, int c, int f);
+bool pFull(struct Flight cheapFlights[], int c); 
+int  putMinFlightInP(struct Flight cheapFlights[], int c);
+void updateDistances(struct Flight cheapFlights[], int c, int minPosn, int* direct_flight_prices);
+int getFPGLB(int* cheapest_flight_prices, int c);
+
+int main()
 {
-int c; // number of cities, 2<=c<=230
-int f; // number of flights, 1<=f<=23665
-int k; //scratch variable
-int j;
+int c; //number of cities
+int f; // number of flights
+int flightPriceGLB; //greatest lower bound of flight prices
 
-int x; //first city
-int y; //second city
-int p; //price of flight
+getInput(c, f);
 
-int s;// source city for Dijkstra's Algorithm
-int m; //minimum vertex not in P
-int mostExpensiveFlight;
+int direct_flight_prices[c][c]; // prices of all direct flights
+int cheapest_flight_prices[c][c]; //prices of cheapest flight paths between any 2 cities
 
-system("clear");
-cout<<"Enter the number of cities and number of flights in that order: "; 
-cin>> c;
-cin>> f;
-
-int flights[c][c]; //array of flights between the cities
-int cheapest_flight[c][c];
-struct Node cities[c]; //array used to find cheapest flights between city S to all other cities
+getFlights((int*) direct_flight_prices, c, f);
 
 
-for (k=0; k < c; k++)
-	{
-	for (j=0; j < c; j++)
-		{
-		flights[k][j] = 0;
-		cheapest_flight[k][j] = 0;
-		}
-	}
+getAllCheapFlights((int*) cheapest_flight_prices, (int*) direct_flight_prices, c, f);
 
-for (k=0; k < f; k++)	
-	{
-	cout<<"Enter the cities and price of each flight: ";
-	cin>>x;
-	cin>>y;
-	cin>>p;
-	
-		
-	flights[x-1][y-1] = p;
-	flights[y-1][x-1] = p;
-	}
-	
-for (s = 0; s < c; s++) //Use Dijkstra's Algorithm to find cheapest flight from s to all other cities
-	{
-	for (k=0; k < c; k++)
-		{
-		if (k == s)
-			{
-			cities[k].w = 0;
-			cities[k].predecessor = -1;
-			cities[k].inP = 1;
-			}
-			
-		else
-			{
-			cities[k].w = flights[s][k];
-			cities[k].predecessor = s;
-			cities[k].inP = 0;
-			}
-		}
-		
-	while (!checkP(cities, c))//step 3 of Dijkstra's Algorithm
-		{
-		m = -1;
-		for (k=0; k < c && cities[k].inP; k++) // find the first vertex not in P
-			;
-			
-		m = k; 
-		
-		for (k=m+1; k < c; k++) //find city node not in P with smallest distance 
-			{
-			if (!cities[k].inP && cities[k].w) //if the current city node is not at infinity distance 
-				{
-				if (!cities[m].w)// if city[m] has distance infinity
-					m = k;
-					
-				else if (cities[k].w < cities[m].w)
-					m = k;
-					
-				}
-			}
-			
-		cities[m].inP = 1; 
-		
-		for(k=0; k < c; k++) //for each vertex k, not in P, and adjacent to m
-			{                //replace k's weight with min of k.weight and m.weight + w(m,k)
-			if (!cities[k].inP && flights[m][k])
-				{
-				if (cities[m].w && flights[m][k])
-					{
-					if (!cities[k].w)
-						{
-						cities[k].w = cities[m].w + flights[m][k];
-						cities[k].predecessor = m;
-						}
-						
-					else if (cities[m].w + flights[m][k] < cities[k].w)
-						{
-						cities[k].w = cities[m].w + flights[m][k];
-						cities[k].predecessor = m;
-						}
-						
-					}
-				}	
-		
-			}
-		
-		}//step 3 of Dijkstra's Algorithm
-	
-	for (k=s; k < c; k++)
-		{
-		cheapest_flight[s][k] = cities[k].w;
-		cheapest_flight[k][s] = cities[k].w;
-		}
-	}
+flightPriceGLB = getFPGLB((int*) cheapest_flight_prices, c);
 
-mostExpensiveFlight = 0;
-for (k=0; k < c; k++)
-	{
-	for (j=k+1; j < c; j++)
-		{
-		if (cheapest_flight[k][j] > mostExpensiveFlight)
-			mostExpensiveFlight = cheapest_flight[k][j];
-		}
-	}
-	
-cout<<"The most expensive flight that can be purchased is $"<<mostExpensiveFlight<<endl<<endl;
-
+cout<<endl<<flightPriceGLB<<endl;
 return 0;
 }
-//////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////
-int checkP(struct Node cities[], int c)
-{
-int p_complete = 1;
-int k;
 
-for(k=0; k < c && p_complete; k++)	
+/*
+ * Functions
+ */
+ 
+ void getInput(int &c, int &f)
+ {
+ cin>>c;
+ cin>>f;
+ }
+ 
+ void getFlights(int* direct_flight_prices, int c, int f)
+ {
+ int c1; //first city
+ int c2; //second city
+ int p;  //flight price
+ int k;
+ 
+ for(c1=0; c1 < c; c1++) //init all direct flight prices to -1 (no flight available)
+ 	{
+ 	for(c2=0; c2 < c; c2++)
+ 		*(direct_flight_prices + c1*c + c2) = -1;
+ 	}
+ 	
+ for(k=0; k < f; k++)
+ 	{
+ 	cin>>c1;
+ 	cin>>c2;
+ 	
+ 	cin>> *(direct_flight_prices + (c1-1)*c + (c2-1));
+ 	
+ 	*(direct_flight_prices + (c2-1)*c + (c1-1)) = *(direct_flight_prices + (c1-1)*c + (c2-1));
+ 	}
+ }
+ 
+ void getAllCheapFlights(int* cheapest_flight_prices, int* direct_flight_prices, int c, int f)
+ {
+ struct Flight cheapFlights[c]; //cheapest flight from source city to destination city
+ int s; //source city
+ int d; //destination city
+ int k; //scratch variable
+ int minPosn;
+ 
+for(s=0; s < c; s++)
 	{
-	if (!cities[k].inP)
-		p_complete = 0;
-	}
+	for(d=0; d < c; d++)
+		{
+		if (s == d) //initialize source city
+			{
+			cheapFlights[d].inP = true;
+			cheapFlights[d].predecessor = -1;
+			cheapFlights[d].d = 0;
+			}
+			
+		else //initialize destination cities
+			{
+			cheapFlights[d].inP = false;
+			cheapFlights[d].predecessor = s;
+			cheapFlights[d].d = *(direct_flight_prices + s*c + d);
+			}
+		}
 	
-return p_complete;
-}
+		
+	while(!pFull(cheapFlights, c)) //while there are destination cities that have not 
+								   // been processed
+		{
+		minPosn = putMinFlightInP(cheapFlights, c);
+			
+		updateDistances(cheapFlights, c, minPosn, (int*) direct_flight_prices);
+		}	
+	
+	for(d=0; d < c; d++)
+		{
+		*(cheapest_flight_prices + s*c + d) = cheapFlights[d].d;
+		*(cheapest_flight_prices + d*c + s) = cheapFlights[d].d;
+		}
+	}
+ 
+ }
+ 
+ bool pFull(struct Flight cheapFlights[], int c) //check to see if there
+ 												 //is a dest. city that hasn't been processed
+ {
+ int k;
+ bool pfull = true;
+ 
+ for(k=0; k < c && pfull; k++)
+ 	pfull = cheapFlights[k].inP;
+
+ return pfull;
+ }
+ 
+ int putMinFlightInP(struct Flight cheapFlights[], int c)
+ {
+ int k;
+ int minPosn;
+ int minFlightDistance = -1;
+ 
+ for(k=0; k < c; k++)
+ 	{
+ 	/*
+ 	if(cheapFlights[k].d < minFlightDistance && !cheapFlights[k].inP)
+ 		{
+ 		minFlightDistance = cheapFlights[k].d;
+ 		minPosn = k;
+ 		}
+ 	*/
+ 	
+ 	if (cheapFlights[k].d != -1 && !cheapFlights[k].inP)
+ 		{
+ 		if (minFlightDistance == -1)
+ 			{
+			minFlightDistance = cheapFlights[k].d;
+			minPosn = k;
+ 			}
+ 			
+ 		else if (cheapFlights[k].d < minFlightDistance)
+ 			{
+			minFlightDistance = cheapFlights[k].d;
+			minPosn = k;	
+ 			}
+ 			
+ 		}
+ 	
+ 	}
+ 	
+ cheapFlights[minPosn].inP = true;
+ return minPosn;
+ }
+ 
+ void updateDistances(struct Flight cheapFlights[], int c, int minPosn, int* direct_flight_prices)
+ {
+ int k;
+ 
+ for(k=0; k < c; k++)
+ 	{
+ 	if(!cheapFlights[k].inP)
+ 		{
+ 		if (cheapFlights[minPosn].d != -1 && *(direct_flight_prices + k*c + minPosn) != -1)
+ 			{
+ 			if (cheapFlights[k].d == -1)
+ 				{
+  				cheapFlights[k].d = cheapFlights[minPosn].d + *(direct_flight_prices + k*c + minPosn);
+ 				cheapFlights[k].predecessor = minPosn;
+ 				}
+ 				
+ 			else if ((cheapFlights[k].d > cheapFlights[minPosn].d + *(direct_flight_prices + k*c + minPosn)))
+ 				{
+  				cheapFlights[k].d = cheapFlights[minPosn].d + *(direct_flight_prices + k*c + minPosn);
+ 				cheapFlights[k].predecessor = minPosn; 				
+ 				}
+ 			}
+ 		}
+ 	}
+ }
+ 
+ int getFPGLB(int* cheapest_flight_prices, int c)
+ {
+ int fpGLB = -1;
+ 
+ int j;
+ int k;
+ 
+ for(k=0; k < c; k++)
+ 	{
+ 	for (j=k; j < c; j++)
+ 		{
+ 		fpGLB = max(fpGLB, *(cheapest_flight_prices + k*c + j));
+ 		}
+ 	}
+ 	
+ return fpGLB;
+ }
+ 
